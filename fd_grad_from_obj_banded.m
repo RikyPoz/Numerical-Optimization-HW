@@ -33,7 +33,8 @@ function g = fd_grad_from_obj_banded(fobj, x, k, use_relative, bandwidth)
     color = mod((1:n)-1, p) + 1;
 
     g = zeros(n, 1);
-    for c = 1:p
+    % the logic here is the same as the one we used for approximating the Hessian
+    for c = 1:p 
             
         idx = find(color == c);
         d = zeros(n,1);
@@ -44,8 +45,9 @@ function g = fd_grad_from_obj_banded(fobj, x, k, use_relative, bandwidth)
 
         for s = 1:length(idx)
             j = idx(s);
-            g(j) = df / h(j);
+            g(j) = df / h(j); 
         end
 
     end
+
 end
