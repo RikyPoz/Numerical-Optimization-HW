@@ -13,7 +13,7 @@ function H = prob49_hess(x)
     [~, ~, H] = prob49_analitico(x);
 end
 
-function [f, g, H] = prob49_analytical(x)
+function [F, g, H] = prob49_analytical(x)
 % problem 49: Attracting-Repelling problem 
 % F(x) = 1/2 * sum_{k=1}^m (f_k(x))^2, with m = 2(n-1)
 % f_1(x) = x1 - 1;
@@ -160,3 +160,4 @@ function [f, g, H] = prob49_analytical(x)
        
 
 end
+
