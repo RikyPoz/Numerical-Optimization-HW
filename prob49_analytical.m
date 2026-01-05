@@ -27,7 +27,7 @@ function [F, g, H] = prob49_analytical(x)
 
     n = length(x);
 
-    % we should now buil the residuals:
+    % we should now build the residuals:
     f1 = x(1) -1; % f1
 
     % even residuals:
@@ -155,9 +155,10 @@ function [F, g, H] = prob49_analytical(x)
         end
     end
 
-    % adds vlaue V(k) to position (I(k), J(k)) of the matrix
+    % adds value V(k) to position (I(k), J(k)) of the matrix
     H = sparse(I(1:t), J(1:t), V(1:t), n, n);
        
 
 end
+
 
