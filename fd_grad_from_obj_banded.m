@@ -50,4 +50,13 @@ function g = fd_grad_from_obj_banded(fobj, x, k, use_relative, bandwidth)
 
     end
 
+    % Note that we don't implement it like this: 
+    % for j = 1:n
+    %    f1 = fobj(x+h(j)*e_j);
+    %    g(j) = (f1-f0) / h(j);
+    % end 
+    % because in this version we have O(n) objective evaluations per graident and it becomes 
+    % very slow and not scalable for 10^5
+
 end
+
