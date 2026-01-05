@@ -18,6 +18,7 @@ fterms = @(k, gradfk) min(0.5, sqrt(norm(gradfk)));
 cg_maxit = 500;
 
 % --- PROBLEM HANDLES ---
+% You can change them to @prob49_obj, @prob49_grad, @prob49_hess to see the results for problem 49
 f_handle = @prob31_obj;
 g_handle = @prob31_grad;
 h_handle = @prob31_hess;
