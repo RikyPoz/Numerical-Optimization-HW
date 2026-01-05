@@ -1,16 +1,16 @@
 % Objective function handle
 function f = prob49_obj(x)
-    [f, ~, ~] = prob49_analitico(x);
+    [f, ~, ~] = prob49_analytical(x);
 end
 
 % Gradient handle
 function g = prob49_grad(x)
-    [~, g, ~] = prob49_analitico(x);
+    [~, g, ~] = prob49_analytical(x);
 end
 
 % Hessian handle
 function H = prob49_hess(x)
-    [~, ~, H] = prob49_analitico(x);
+    [~, ~, H] = prob49_analytical(x);
 end
 
 function [F, g, H] = prob49_analytical(x)
@@ -160,5 +160,6 @@ function [F, g, H] = prob49_analytical(x)
        
 
 end
+
 
 
