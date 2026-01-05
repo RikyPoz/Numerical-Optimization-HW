@@ -17,6 +17,11 @@ btmax = 50;
 fterms = @(k, gradfk) min(0.5, sqrt(norm(gradfk))); 
 cg_maxit = 500;
 
+% --- PROBLEM HANDLES ---
+f_handle = @prob31_obj;
+g_handle = @prob31_grad;
+h_handle = @prob31_hess;
+
 % --- TEST SETTINGS ---
 dimensions = [2, 1e3, 1e4, 1e5]; 
 n_rand_points = 5;
@@ -27,8 +32,12 @@ for n = dimensions
     fprintf('PROVA DIMENSIONE n = %d\n', n);
     fprintf('==========================================\n');
     
-    x_suggested = -ones(n, 1);
+    x_suggested = -ones(n, 1); 
     x_starts = [x_suggested, x_suggested + (2*rand(n, n_rand_points) - 1)];
+    % The starting point would be different for problem 49: 
+    % x_suggested = zeros(n,1);
+    % x_suggested(1:2:end) = -1.2;
+    % x_suggested(2:2:end) =  1.0;
     
     for s = 1:size(x_starts, 2)
         x0 = x_starts(:, s);
@@ -38,7 +47,7 @@ for n = dimensions
         fprintf('  > Esecuzione Modified Newton... ');
         tic;
         [~, ~, gnorm_m, k_m, ~, ~] = modified_newton_bcktrck(...
-            x0, @prob31_obj, @prob31_grad, @prob31_hess, ...
+            x0, f_handle, g_handle, h_handle, ...
             kmax, tolgrad, c1, rho, btmax);
         time_m = toc;
         fprintf('Finito. Iterazioni: %d, Tempo: %.2fs, Successo: %d\n', k_m, time_m, gnorm_m < tolgrad);
@@ -50,7 +59,7 @@ for n = dimensions
         fprintf('  > Esecuzione Truncated Newton... ');
         tic;
         [~, ~, gnorm_t, k_t, ~, ~, ~] = truncated_newton_bcktrck(...
-            x0, @prob31_obj, @prob31_grad, @prob31_hess, ...
+            x0, f_handle, g_handle, h_handle, ...
             kmax, tolgrad, c1, rho, btmax, fterms, cg_maxit);
         time_t = toc;
         fprintf('Finito. Iterazioni: %d, Tempo: %.2fs, Successo: %d\n', k_t, time_t, gnorm_t < tolgrad);
