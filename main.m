@@ -23,6 +23,16 @@ f_handle = @prob31_obj;
 g_handle = @prob31_grad;
 h_handle = @prob31_hess;
 
+% --- USING FINITE DIFFFERENCES FOR THE DERIVATIVES --- 
+bandwidth = 2;
+k = 8; % you should check 4 and 12 also
+use_relative = false; % you can set it to true if you want hi = 10^(-k)|xi|
+g_fd = @(x) fd_grad_from_obj_banded (f_handle, x, k, use_relative, bandwidth);
+% g_handle = g_fd in case you want to approximate also the gradient 
+H_fd = @(x) fd_hessian_from_grad(g_handle, x, k, use_relative, bandwidth);
+% Noe that you should use H_fd only for the Modified Newton method because Truncated Newton 
+% does not need the Hessian explicitly
+
 % --- TEST SETTINGS ---
 dimensions = [2, 1e3, 1e4, 1e5]; 
 n_rand_points = 5;
