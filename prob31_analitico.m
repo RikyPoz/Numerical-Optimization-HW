@@ -1,18 +1,3 @@
-% Funzione Obiettivo (F)
-function f = prob31_obj(x)
-    [f, ~, ~] = prob31_analitico(x);
-end
-
-% Gradiente (g)
-function g = prob31_grad(x)
-    [~, g, ~] = prob31_analitico(x);
-end
-
-% Hessiana (H)
-function H = prob31_hess(x)
-    [~, ~, H] = prob31_analitico(x);
-end
-
 function [f, g, H] = prob31_analitico(x)
 % Analytical evaluation of the Broyden Tridiagonal function.
 % This function computes the objective value, gradient, and Hessian for 

@@ -1,0 +1,130 @@
+%% Script di Test: Derivative-based Optimization - Problema 31
+clear; clc;
+
+% --- CONFIGURAZIONE TEAM ---
+student_ids = [123456, 234567, 345678]; 
+min_id = min(student_ids);
+rng(min_id); % Impostazione del seed casuale 
+
+% --- PARAMETRI METODI ---
+kmax = 1000;
+tolgrad = 1e-6; % Criterio di arresto basato sulla norma del gradiente 
+c1 = 1e-4; 
+rho = 0.5; 
+btmax = 50;
+
+% Per Newton Troncato: forcing term per convergenza superlineare/quadratica 
+fterms = @(k, gradfk) min(0.5, sqrt(norm(gradfk))); 
+cg_maxit = 500;
+
+% --- PROBLEM HANDLES ---
+f31_handle = @prob31_obj;
+g31_handle = @prob31_grad;
+h31_handle = @prob31_hess;
+
+f49_handle = @prob49_obj;
+g49_handle = @prob49_grad;
+h49_handle = @prob49_hess;
+
+% --- USING FINITE DIFFFERENCES FOR THE DERIVATIVES --- 
+bandwidth = 2;
+k = 8; % you should check 4 and 12 also
+use_relative = false; % you can set it to true if you want hi = 10^(-k)|xi|
+g_fd = @(x) fd_grad_from_obj_banded (f_handle, x, k, use_relative, bandwidth);
+% g_handle = g_fd in case you want to approximate also the gradient 
+H_fd = @(x) fd_hessian_from_grad(g_handle, x, k, use_relative, bandwidth);
+% Noe that you should use H_fd only for the Modified Newton method because Truncated Newton 
+% does not need the Hessian explicitly
+
+% --- TEST SETTINGS ---
+dimensions = [2, 1e3, 1e4, 1e5]; 
+n_rand_points = 5;
+results = [];
+
+% --- LISTA DEI PROBLEMI DA TESTARE ---
+problem_ids = [31, 49]; 
+
+for prob_id = problem_ids
+    fprintf('\n##########################################\n');
+    fprintf('PROBABILE ANALISI: PROBLEMA %d\n', prob_id);
+    fprintf('##########################################\n');
+
+    % 1. Configurazione specifica per il problema
+    if prob_id == 31
+        f_handle = @prob31_obj; g_handle = g31_handle; h_handle = h31_handle;
+    else
+        f_handle = f49_handle; g_h = g49_handle; h_h = h49_handle;
+    end
+
+    for n = dimensions
+        fprintf('\n--- Dimensione n = %d ---\n', n);
+        
+        % 2. Generazione dello starting point specifico
+        if prob_id == 31
+            x_suggested = -ones(n, 1);
+        else % Problema 49 (Chained Cragg and Levy)
+            x_suggested = zeros(n, 1);
+            x_suggested(1) = 1;
+            x_suggested(2:end) = 2; 
+            % Nota: Se il tuo PDF suggerisce [-1.2; 1], usa quello nel commento:
+            % x_suggested(1:2:end) = -1.2; x_suggested(2:2:end) = 1.0;
+        end
+        
+        % Generazione dei 6 punti (Suggerito + 5 Random)
+        x_starts = [x_suggested, x_suggested + (2*rand(n, n_rand_points) - 1)];
+        
+        for s = 1:size(x_starts, 2)
+            x0 = x_starts(:, s);
+            
+            % --- TEST NEWTON MODIFICATO ---
+            tic;
+            [~, ~, gnorm_m, k_m, ~, ~] = modified_newton_bcktrck(...
+                x0, f_h, g_h, h_h, kmax, tolgrad, c1, rho, btmax);
+            time_m = toc;
+            
+            % Salvataggio dati (aggiungendo la colonna 'Prob')
+            results = [results; struct('Prob', prob_id, 'n', n, 'pt', s, 'Method', 'Mod', ...
+                'Iters', k_m, 'Time', time_m, 'Success', gnorm_m < tolgrad)];
+
+            % --- TEST NEWTON TRONCATO ---
+            tic;
+            [~, ~, gnorm_t, k_t, ~, ~, ~] = truncated_newton_bcktrck(...
+                x0, f_h, g_h, h_h, kmax, tolgrad, c1, rho, btmax, fterms, cg_maxit);
+            time_t = toc;
+            
+            results = [results; struct('Prob', prob_id, 'n', n, 'pt', s, 'Method', 'Trun', ...
+                'Iters', k_t, 'Time', time_t, 'Success', gnorm_t < tolgrad)];
+        end
+    end
+end
+
+% Visualizzazione tabella risultati 
+disp(struct2table(results));
+
+%% --- LOCAL FUNCTION  ---
+
+%(Problem 31)
+function f = prob31_obj(x)
+    [f, ~, ~] = prob31_analitico(x);
+end
+
+function g = prob31_grad(x)
+    [~, g, ~] = prob31_analitico(x);
+end
+
+function H = prob31_hess(x)
+    [~, ~, H] = prob31_analitico(x);
+end
+
+%(Problem 49)
+function f = prob49_obj(x)
+    [f, ~, ~] = prob49_analytical(x);
+end
+
+function g = prob49_grad(x)
+    [~, g, ~] = prob49_analytical(x);
+end
+
+function H = prob49_hess(x)
+    [~, ~, H] = prob49_analytical(x);
+end

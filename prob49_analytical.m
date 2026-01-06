@@ -1,18 +1,3 @@
-% Objective function handle
-function f = prob49_obj(x)
-    [f, ~, ~] = prob49_analytical(x);
-end
-
-% Gradient handle
-function g = prob49_grad(x)
-    [~, g, ~] = prob49_analytical(x);
-end
-
-% Hessian handle
-function H = prob49_hess(x)
-    [~, ~, H] = prob49_analytical(x);
-end
-
 function [F, g, H] = prob49_analytical(x)
 % problem 49: Attracting-Repelling problem 
 % F(x) = 1/2 * sum_{k=1}^m (f_k(x))^2, with m = 2(n-1)
