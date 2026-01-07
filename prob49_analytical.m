@@ -129,8 +129,16 @@ function [F, g, H] = prob49_analytical(x)
         d2m(1:n-2) = d2m(1:n-2) + gip2 .* gi;                 % (i+2,i)
     end
 
+    D = [ ...
+        [d2m; 0; 0], ...          % Diag -2 
+        [d1m; 0], ...             % Diag -1 
+        d0, ...                   % Diag  0
+        [0; d1p], ...             % Diag +1 
+        [0; 0; d2p]               % Diag +2 
+    ];
+    
     % Assemble sparse pentadiagonal Hessian
-    H = spdiags([d2m, d1m, d0, d1p, d2p], [-2, -1, 0, 1, 2], n, n);
+    H = spdiags(D, [-2, -1, 0, 1, 2], n, n);
 
     % Numerical symmetry safeguard (should already be symmetric)
     H = 0.5 * (H + H.');

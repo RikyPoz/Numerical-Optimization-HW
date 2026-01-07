@@ -2,7 +2,7 @@
 clear; clc;
 
 % --- TEAM CONFIGURATION ---
-student_ids = [360765, 234567, 345678]; 
+student_ids = [360765, 361352, 359620]; 
 min_id = min(student_ids);
 rng(min_id); % Set random seed for reproducibility
 
@@ -18,8 +18,7 @@ fterms = @(k, gradfk) min(0.5, sqrt(norm(gradfk)));
 cg_maxit = 500;
 
 % --- USING FINITE DIFFERENCES FOR THE DERIVATIVES --- 
-bandwidth = 2;
-k_list = [4,8,12]; % you should check 4 and 12 also
+k_list = [4,8,12]; 
 step_types = ["h", "hi"];
 use_relative_list = [false true];  % false -> h, true -> hi; % you can set it to true if you want hi = 10^(-k)|xi|
 % g_fd = @(x) fd_grad_from_obj_banded (f_handle, x, k, use_relative, bandwidth);
@@ -29,8 +28,8 @@ use_relative_list = [false true];  % false -> h, true -> hi; % you can set it to
 % does not need the Hessian explicitly
 
 % Choosing what to run:
-RUN_POINT3_1 = true; % exact gradient with FD H (only for modified newton)
-RUN_POINT3_2 = false; % FD g with FD H (MN and optionaly Truncated Newton)
+RUN_POINT3_1 = false; % exact gradient with FD H (only for modified newton)
+RUN_POINT3_2 = true; % FD g with FD H (MN and optionaly Truncated Newton)
 
 % --- TEST SETTINGS ---
 dimensions = [2, 1e3, 1e4, 1e5]; 
@@ -73,8 +72,14 @@ for prob_id = problem_ids
     % --- PROBLEM HANDLES ---
     if prob_id == 31
         f_h = @prob31_obj; g_h = @prob31_grad; h_h = @prob31_hess;
+        res_fun = @prob31_residui;
+        bw_res = 1;
+        bw_hess = 2;
     else
         f_h = @prob49_obj; g_h = @prob49_grad; h_h = @prob49_hess;
+        res_fun = @prob49_residui;
+        bw_res = 2;
+        bw_hess = 4;
     end
 
     for n = dimensions
@@ -115,7 +120,7 @@ for prob_id = problem_ids
                         % POINT 3.1: exact gradient + FD Hessian  (MN only)
                         % -----------------------------
                         if RUN_POINT3_1                           
-                            H_fd = @(x) fd_hessian_from_grad(g_h, x, k_fd, use_relative, bandwidth);
+                            H_fd = @(x) fd_hessian_from_grad(g_h, x, k_fd, use_relative, bw_hess);
 
                             fprintf('  > MN (FD Hessian, %s)... ', fd_label);
                             tic;
@@ -138,9 +143,9 @@ for prob_id = problem_ids
                         % POINT 3.2 : FD gradient + FD Hessian                   
                         % -----------------------------
                         if RUN_POINT3_2
-                            g_fd = @(x) fd_grad_from_obj_banded(f_h, x, k_fd, use_relative, bandwidth);
-                            H_fd = @(x) fd_hessian_from_grad(g_fd, x, k_fd, use_relative, bandwidth);
-
+                           
+                            g_fd = @(x) fd_grad_from_obj_banded(res_fun, x, k_fd, use_relative, bw_res);
+                            H_fd = @(x) fd_hessian_from_grad(g_fd, x, k_fd, use_relative, bw_hess);
                             % MN with FD g and FD H
                             fprintf('  > MN (FD g & H, %s)... ', fd_label);
                             tic;
@@ -245,4 +250,27 @@ function g = prob49_grad(x)
 end
 function H = prob49_hess(x)
     [~, ~, H] = prob49_analytical(x);
+end
+
+
+
+%temporary functions: we should put r directly in the output of problem
+%files
+function r = prob31_residui(x)
+    n = length(x);
+    % f_k(x) = (3-2x_k)x_k - x_{k-1} - 2x_{k+1} + 1
+    x_prev = [0; x(1:n-1)];
+    x_next = [x(2:n); 0];
+    r = (3 - 2*x).*x - x_prev - 2*x_next + 1; 
+end
+
+function r = prob49_residui(x)
+    n = length(x);
+    f1 = x(1) - 1; 
+    % Residui pari (e_i) e dispari (o_i)
+    xi = x(1:n-1); xip1 = x(2:n);
+    e = 10 * (xi.^2 - xip1); 
+    a = x(1:n-2) - x(2:n-1); b = x(2:n-1) - x(3:n);
+    o = 2*exp(-(a.^2)) + exp(-2*(b.^2)); 
+    r = [f1; e; o]; 
 end
