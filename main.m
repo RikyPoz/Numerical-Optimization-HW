@@ -29,7 +29,7 @@ use_relative_list = [false true];  % false -> h, true -> hi; % you can set it to
 % does not need the Hessian explicitly
 
 % Choosing what to run:
-RUN_POINT3_1 = false; % exact gradient with FD H (only for modified newton)
+RUN_POINT3_1 = true; % exact gradient with FD H (only for modified newton)
 RUN_POINT3_2 = false; % FD g with FD H (MN and optionaly Truncated Newton)
 
 % --- TEST SETTINGS ---
