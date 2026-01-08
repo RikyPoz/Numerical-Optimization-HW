@@ -1,10 +1,11 @@
-function [xk, fk, gradfk_norm, k, xseq, btseq, cgiterseq] = ...
+function [xk, fk, gradfk_norm, k, xseq, gradseq, btseq, cgiterseq] = ...
     truncated_newton_bcktrck(x0, f, gradf, Hessf, ...
     kmax, tolgrad, c1, rho, btmax, fterms, cg_maxit)
 % TRUNCATED_NEWTON_BCKTRCK Metodo di Newton Troncato (Newton-CG).
 
 % Inizializzazioni standard
 xseq = zeros(length(x0), kmax);
+gradseq = zeros(1, kmax);
 btseq = zeros(1, kmax);
 cgiterseq = zeros(1, kmax); % Per memorizzare le iterazioni interne del CG
 
@@ -18,6 +19,7 @@ while k < kmax
     fk = f(xk);
     gradfk = gradf(xk);
     gradfk_norm = norm(gradfk);
+    gradseq(k+1) = gradfk_norm;
     
     % Criterio di arresto esterno sulla norma del gradiente 
     if gradfk_norm < tolgrad
@@ -109,6 +111,7 @@ end
 
 % "Pulizia" sequenze e aggiunta x0
 xseq = [x0, xseq(:, 1:k)];
+gradseq = gradseq(1:k);
 btseq = btseq(1:k);
 cgiterseq = cgiterseq(1:k);
 fk = f(xk);

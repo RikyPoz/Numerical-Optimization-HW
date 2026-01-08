@@ -1,16 +1,8 @@
-function [xk, fk, gradfk_norm, k, xseq, btseq] = ...
+function [xk, fk, gradfk_norm, k, xseq, gradseq, btseq] = ...
     modified_newton_bcktrck(x0, f, gradf, Hessf, ...
     kmax, tolgrad, c1, rho, btmax)
 % MODIFIED_NEWTON_BCKTRCK Metodo di Newton Modificato con Line Search.
-%
-% Questo metodo arricchisce i metodi basati sul gradiente aggiungendo informazioni
-% sulle derivate di secondo ordine (Hessiana) per migliorare il tasso di 
-% convergenza.
 
-% --- PARAMETRI EURISTICI PER LA MODIFICA DELL'HESSIANA ---
-% Se l'Hessiana non è definita positiva, il modello quadratico m_k(p) è 
-% illimitato inferiormente. Si corregge l'Hessiana con una matrice 
-% E_k tale che B_k = Hessf + E_k sia definita positiva.
 beta = 1e-3; % Parametro per la scelta di tau_k iniziale.
 
 % Condizione di Armijo per garantire la convergenza globale[cite: 93, 163].
@@ -19,6 +11,7 @@ farmijo = @(fk, alpha, c1_gradfk_pk) fk + alpha * c1_gradfk_pk;
 % Inizializzazioni
 xseq = zeros(length(x0), kmax);
 btseq = zeros(1, kmax);
+gradseq = zeros(1, kmax);
 xk = x0;
 k = 0;
 
@@ -26,6 +19,7 @@ while k < kmax
     fk = f(xk);
     gradfk = gradf(xk);
     gradfk_norm = norm(gradfk);
+    gradseq(k+1) = gradfk_norm;
     
     % Criterio di arresto basato sulla stazionarietà: grad f(x*) = 0.
     if gradfk_norm < tolgrad
@@ -99,6 +93,7 @@ end
 % Preparazione dei risultati finali
 xseq = [x0, xseq(:, 1:k)];
 btseq = btseq(1:k);
+gradseq = gradseq(1:k);
 fk = f(xk);
 gradfk_norm = norm(gradf(xk));
 

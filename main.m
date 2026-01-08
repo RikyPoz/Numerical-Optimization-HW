@@ -28,8 +28,8 @@ use_relative_list = [false true];  % false -> h, true -> hi; % you can set it to
 % does not need the Hessian explicitly
 
 % Choosing what to run:
-RUN_POINT3_1 = false; % exact gradient with FD H (only for modified newton)
-RUN_POINT3_2 = true; % FD g with FD H (MN and optionaly Truncated Newton)
+RUN_POINT3_1 = true; % exact gradient with FD H (only for modified newton)
+RUN_POINT3_2 = false; % FD g with FD H (MN and optionaly Truncated Newton)
 
 % --- TEST SETTINGS ---
 dimensions = [2, 1e3, 1e4, 1e5]; 
@@ -60,8 +60,8 @@ end
 results(nRows,1) = struct( ...
     'Prob', [], 'n', [], 'pt', [], 'FDcase', "", 'Method', "", ...
     'k', [], 'step', "", ...
-    'gnorm', [], 'iters', [], 'time', [], 'success', false);
-
+    'gnorm', [], 'iters', [], 'time', [], 'success', false, ...
+    'xseq', [], 'gradseq', [], 'exp_rate', []); 
 r = 0;
 
 for prob_id = problem_ids
@@ -124,7 +124,7 @@ for prob_id = problem_ids
 
                             fprintf('  > MN (FD Hessian, %s)... ', fd_label);
                             tic;
-                            [~, ~, gnorm_m, it_m, ~, ~] = modified_newton_bcktrck( ...
+                            [~, ~, gnorm_m, it_m, xseq_m, gradseq_m, ~] = modified_newton_bcktrck( ...
                                 x0, f_h, g_h, H_fd, ...
                                 kmax, tolgrad, c1, rho, btmax);
                             t_m = toc;
@@ -136,7 +136,9 @@ for prob_id = problem_ids
                             results(r) = struct('Prob', prob_id, 'n', n, 'pt', s, ...
                                 'FDcase', "Point3.1", 'Method', "Modified", ...
                                 'k', k_fd, 'step', step_name, ...
-                                'gnorm', gnorm_m, 'iters', it_m, 'time', t_m, 'success', succ);
+                                'gnorm', gnorm_m, 'iters', it_m, 'time', t_m, 'success', succ, ...
+                                'xseq', xseq_m, 'gradseq', gradseq_m, 'exp_rate', estimate_rate(gradseq_m));
+
                         end
 
                         % -----------------------------
@@ -149,24 +151,26 @@ for prob_id = problem_ids
                             % MN with FD g and FD H
                             fprintf('  > MN (FD g & H, %s)... ', fd_label);
                             tic;
-                            [~, ~, gnorm_m, it_m, ~, ~] = modified_newton_bcktrck( ...
+                           
+                            [~, ~, gnorm_m, it_m, xseq_m, gradseq_m, ~] = modified_newton_bcktrck( ...
                                 x0, f_h, g_fd, H_fd, ...
                                 kmax, tolgrad, c1, rho, btmax);
+                            
                             t_m = toc;
+                            succ=gnorm_m < tolgrad;
 
-                            succ = gnorm_m < tolgrad;
                             fprintf('Finished. Iterations: %d, Time: %.2fs, Success: %d\n', it_m, t_m, succ);
 
                             r = r + 1;
                             results(r) = struct('Prob', prob_id, 'n', n, 'pt', s, ...
-                                'FDcase', "Point3.2", 'Method', "Modified", ...
-                                'k', k_fd, 'step', step_name, ...
-                                'gnorm', gnorm_m, 'iters', it_m, 'time', t_m, 'success', succ);
+                                'FDcase', "Point3.2", 'Method', "Modified", 'k', k_fd, 'step', step_name, ...
+                                'gnorm', gnorm_m, 'iters', it_m, 'time', t_m, 'success', gnorm_m < tolgrad, ...
+                                'xseq', xseq_m, 'gradseq', gradseq_m, 'exp_rate', estimate_rate(gradseq_m));
 
                             % TN with FD g & FD H 
                             fprintf('  > TN (FD g & H, %s)... ', fd_label);
                             tic;
-                            [~, ~, gnorm_t, it_t, ~, ~, ~] = truncated_newton_bcktrck( ...
+                            [~, ~, gnorm_t, it_t, xseq_t, gradseq_t, ~, ~] = truncated_newton_bcktrck( ...
                                 x0, f_h, g_fd, H_fd, ...
                                 kmax, tolgrad, c1, rho, btmax, fterms, cg_maxit);
                             t_t = toc;
@@ -176,9 +180,9 @@ for prob_id = problem_ids
 
                             r = r + 1;
                             results(r) = struct('Prob', prob_id, 'n', n, 'pt', s, ...
-                                'FDcase', "Point3.2", 'Method', "Truncated", ...
-                                'k', k_fd, 'step', step_name, ...
-                                'gnorm', gnorm_t, 'iters', it_t, 'time', t_t, 'success', succ);
+                                'FDcase', "Point3.2", 'Method', "Truncated", 'k', k_fd, 'step', step_name, ...
+                                'gnorm', gnorm_t, 'iters', it_t, 'time', t_t, 'success', gnorm_t < tolgrad, ...
+                                'xseq', xseq_t, 'gradseq', gradseq_t, 'exp_rate', estimate_rate(gradseq_t));
                         end
                     end
                 end
@@ -190,43 +194,65 @@ for prob_id = problem_ids
                 % Exact MN
                 fprintf(' > Executing Modified Newton... ');
                 tic;
-                [~, ~, gnorm_m, k_m, ~, ~] = modified_newton_bcktrck( ...
+                [~, ~, gnorm_m, k_m, xseq_m, gradseq_m, ~] = modified_newton_bcktrck( ...
                     x0, f_h, g_h, h_h, kmax, tolgrad, c1, rho, btmax);
-                time_m = toc;
 
-                success_m = gnorm_m < tolgrad;
+                time_m = toc;
+                success_m=gnorm_m < tolgrad;
+
                 fprintf('Finished. Iterations: %d, Time: %.2fs, Success: %d\n', k_m, time_m, success_m);
 
                 r = r + 1;
                 results(r) = struct('Prob', prob_id, 'n', n, 'pt', s, ...
-                    'FDcase', "Exact", 'Method', "Modified", ...
-                    'k', NaN, 'step', "", ...
-                    'gnorm', gnorm_m, 'iters', k_m, 'time', time_m, 'success', success_m);
+                    'FDcase', "Exact", 'Method', "Modified", 'k', NaN, 'step', "", ...
+                    'gnorm', gnorm_m, 'iters', k_m, 'time', time_m, 'success', gnorm_m < tolgrad, ...
+                    'xseq', xseq_m, 'gradseq', gradseq_m, 'exp_rate', estimate_rate(gradseq_m));
 
                 % Exact TN
                 fprintf('  > Executing Truncated Newton... ');
                 tic;
-                [~, ~, gnorm_t, k_t, ~, ~, ~] = truncated_newton_bcktrck( ...
+                [~, ~, gnorm_t, k_t, xseq_t, gradseq_t, ~, ~] = truncated_newton_bcktrck( ...
                     x0, f_h, g_h, h_h, kmax, tolgrad, c1, rho, btmax, fterms, cg_maxit);
                 time_t = toc;
-
                 success_t = gnorm_t < tolgrad;
+
                 fprintf('Finished. Iterations: %d, Time: %.2fs, Success: %d\n', k_t, time_t, success_t);
 
                 r = r + 1;
                 results(r) = struct('Prob', prob_id, 'n', n, 'pt', s, ...
-                    'FDcase', "Exact", 'Method', "Truncated", ...
-                    'k', NaN, 'step', "", ...
-                    'gnorm', gnorm_t, 'iters', k_t, 'time', time_t, 'success', success_t);
+                    'FDcase', "Exact", 'Method', "Truncated", 'k', NaN, 'step', "", ...
+                    'gnorm', gnorm_t, 'iters', k_t, 'time', time_t, 'success', gnorm_t < tolgrad, ...
+                    'xseq', xseq_t, 'gradseq', gradseq_t, 'exp_rate', estimate_rate(gradseq_t));
             end
         end
     end
 end
+% Converts results in a table
+T_full = struct2table(results);
+
+cols_to_show = {'Prob', 'n', 'pt', 'FDcase', 'Method', 'k', 'gnorm', 'iters', 'time', 'success', 'exp_rate'};
+T_report = T_full(:, cols_to_show);
+
+% --- EXACT AVG table ---
+T_exact = T_report(T_report.FDcase == "Exact" & T_report.success == true, :);
+avg_exact = groupsummary(T_exact, {'Prob', 'n', 'Method'}, 'mean', {'gnorm', 'iters', 'time', 'exp_rate'});
+disp('Avg Scores For Exact Methods:');
+disp(avg_exact);
+
+% --- FD AVG table ---
+T_fd = T_report(T_report.FDcase ~= "Exact" & T_report.success == true, :);
+avg_fd = groupsummary(T_fd, {'Prob', 'n', 'Method', 'k'}, 'mean', {'gnorm', 'iters', 'time', 'exp_rate'});
+disp('Avg Scores For FD:');
+disp(avg_fd);
+
+disp('Full Table');
+disp(T_report);
+
+plot_results(results, problem_ids, dimensions, tolgrad);
 
 
-% Final table display
-results = results(1:r);
-disp(struct2table(results));
+
+
 
 %% --- LOCAL FUNCTIONS ---
 
@@ -254,6 +280,12 @@ end
 
 
 
+function p = estimate_rate(gradseq)
+   p = convergence_rate(gradseq);
+end
+
+
+
 %temporary functions: we should put r directly in the output of problem
 %files
 function r = prob31_residui(x)
@@ -274,3 +306,4 @@ function r = prob49_residui(x)
     o = 2*exp(-(a.^2)) + exp(-2*(b.^2)); 
     r = [f1; e; o]; 
 end
+
