@@ -4,72 +4,55 @@ clear; clc;
 % --- TEAM CONFIGURATION ---
 student_ids = [360765, 361352, 359620]; 
 min_id = min(student_ids);
-rng(min_id); % Set random seed for reproducibility
+rng(min_id); 
 
 % --- METHOD PARAMETERS ---
 kmax = 1000;
-tolgrad = 1e-6; % Stopping criterion based on the gradient norm
+tolgrad = 1e-6; 
 c1 = 1e-4; 
 rho = 0.5; 
 btmax = 50;
-
-% For Truncated Newton: forcing term for superlinear/quadratic convergence
-fterms = @(k, gradfk) min(0.5, sqrt(norm(gradfk))); 
+fterms = @(k, gradfk) min(0.5, sqrt(norm(gradfk))); % Forcing term for superlinear conv in truncated
 cg_maxit = 500;
 
-% --- USING FINITE DIFFERENCES FOR THE DERIVATIVES --- 
-k_list = [4,8,12]; 
-step_types = ["h", "hi"];
-use_relative_list = [false true];  % false -> h, true -> hi; % you can set it to true if you want hi = 10^(-k)|xi|
-% g_fd = @(x) fd_grad_from_obj_banded (f_handle, x, k, use_relative, bandwidth);
-% g_handle = g_fd in case you want to approximate also the gradient 
-% H_fd = @(x) fd_hessian_from_grad(g_handle, x, k, use_relative, bandwidth);
-% Note that you should use H_fd only for the Modified Newton method because Truncated Newton 
-% does not need the Hessian explicitly
+% --- FINITE DIFFERENCES SETTINGS --- 
+k_list = [4, 8, 12]; 
+step_types = ["h", "hi"]; 
+use_relative_list = [false, true]; % false -> h costante, true -> hi adattivo 
 
-% Choosing what to run:
-RUN_POINT3_1 = true; % exact gradient with FD H (only for modified newton)
-RUN_POINT3_2 = false; % FD g with FD H (MN and optionaly Truncated Newton)
+% --- CHOOSING WHAT TO RUN ---
+RUN_EXACT    = true; % Point 2: Exact derivatives 
+RUN_POINT3_1 = false; % Point 3.1: Exact Gradient, Hessian FD 
+RUN_POINT3_2 = false; % Point 3.2: Grandient and Hessian FD 
 
 % --- TEST SETTINGS ---
 dimensions = [2, 1e3, 1e4, 1e5]; 
-n_rand_points = 5;
-
-% --- PROBLEMS LIST ---
+n_rand_points = 5; 
 problem_ids = [31, 49]; 
-methods_point3_1 = "MN_FD_H"; % only MN uses Hessian explicitly
-methods_point3_2 = ["MN_FD_gH", "TN_FD_gH"]; 
-
 nStarts = 1 + n_rand_points;
-nFD = numel(k_list) * numel(step_types);
-nMethods = 0;
+nFD = numel(k_list) * numel(use_relative_list);
 
-% checking the results for point 2: (Exact computations)
-nRows = numel(problem_ids) * numel(dimensions) * (1 + n_rand_points) * 2;
-
+% --- PRE-ALLOCATION ---
+totalRows = 0;
+if RUN_EXACT
+    totalRows = totalRows + numel(problem_ids) * numel(dimensions) * nStarts * 2;
+end
 if RUN_POINT3_1
-    nMethods = nMethods + numel(methods_point3_1); 
-    nRows = numel(problem_ids) * numel(dimensions) * nStarts * nFD * nMethods;
+    totalRows = totalRows + numel(problem_ids) * numel(dimensions) * nStarts * nFD * 2;
 end
-
 if RUN_POINT3_2
-    nMethods = nMethods + numel(methods_point3_2); 
-    nRows = numel(problem_ids) * numel(dimensions) * nStarts * nFD * nMethods;
+    totalRows = totalRows + numel(problem_ids) * numel(dimensions) * nStarts * nFD * 2;
 end
-
-results(nRows,1) = struct( ...
-    'Prob', [], 'n', [], 'pt', [], 'FDcase', "", 'Method', "", ...
-    'k', [], 'step', "", ...
-    'gnorm', [], 'iters', [], 'time', [], 'success', false, ...
+results(totalRows, 1) = struct('Prob', [], 'n', [], 'pt', [], 'FDcase', "", 'Method', "", ...
+    'k', [], 'step', "", 'gnorm', [], 'iters', [], 'time', [], 'success', false, ...
     'xseq', [], 'gradseq', [], 'exp_rate', []); 
-r = 0;
 
+r = 0;
 for prob_id = problem_ids
     fprintf('\n###########################################################\n');
     fprintf(' OPTIMIZATION ANALYSIS: PROBLEM %d\n', prob_id);
     fprintf('###########################################################\n');
-
-    % --- PROBLEM HANDLES ---
+    
     if prob_id == 31
         f_h = @prob31_obj; g_h = @prob31_grad; h_h = @prob31_hess;
         res_fun = @prob31_residui;
@@ -83,11 +66,9 @@ for prob_id = problem_ids
     end
 
     for n = dimensions
-        fprintf('\n==========================================\n');
-        fprintf('TESTING DIMENSION n = %d\n', n);
-        fprintf('==========================================\n');
-
-        % --- Suggested start (depends on n!) ---
+        fprintf('\n--- Testing Dimension n = %d ---\n', n);
+        
+        % --- Suggested start  ---
         if prob_id == 31
             x_suggested = -ones(n, 1);
         else
@@ -96,137 +77,98 @@ for prob_id = problem_ids
             x_suggested(2:2:end) =  1.0;
         end
 
-        % --- Starting points ---
+        % --- 6 Starting points ---
         x_starts = [x_suggested, x_suggested + (2*rand(n, n_rand_points) - 1)];
 
-        for s = 1:size(x_starts, 2)
+        for s = 1:nStarts
             x0 = x_starts(:, s);
-            fprintf('\n[Starting Point %d/%d]\n', s, size(x_starts, 2));
+            fprintf(' [Point %d/%d]\n', s, nStarts);
+            
+            % --- 1. EXACT PART (Point 2) ---
+            if RUN_EXACT
+                fprintf('  > MN (Exact)... ');
+                tic; 
+                [~, ~, gnorm_m, k_m, xseq_m, gradseq_m, ~] = modified_newton_bcktrck(x0, f_h, g_h, h_h, kmax, tolgrad, c1, rho, btmax);
+                t_m = toc; 
+                fprintf('Done. Iters: %d, Time: %.2fs\n', k_m, t_m);
+                r = r + 1; 
+                results(r) = fill_struct(prob_id, n, s, "Exact", "Modified", NaN, "", gnorm_m, k_m, t_m, xseq_m, gradseq_m, tolgrad);
+                
+                fprintf('  > TN (Exact)... ');
+                tic; 
+                [~, ~, gnorm_t, k_t, xseq_t, gradseq_t, ~, ~] = truncated_newton_bcktrck(x0, f_h, g_h, h_h, kmax, tolgrad, c1, rho, btmax, fterms, cg_maxit);
+                t_t = toc; 
+                fprintf('Done. Iters: %d, Time: %.2fs\n', k_t, t_t);
+                r = r + 1; 
+                results(r) = fill_struct(prob_id, n, s, "Exact", "Truncated", NaN, "", gnorm_t, k_t, t_t, xseq_t, gradseq_t, tolgrad);
+            end
 
-            % ============================================================
-            % FD PART (Point 3.1 and/or 3.2)
-            % ============================================================
-            if (RUN_POINT3_1 || RUN_POINT3_2)
-
+            % --- 2. POINT 3.1 & 3.2 (Finite Differences) ---
+            if RUN_POINT3_1 || RUN_POINT3_2
                 for kk = 1:numel(k_list)
-                    k_fd = k_list(kk);
-
                     for st = 1:numel(use_relative_list)
-                        use_relative = use_relative_list(st);
+                        k_fd = k_list(kk); 
+                        use_rel = use_relative_list(st); 
                         step_name = step_types(st);
-                        fd_label = sprintf("k=%d, step=%s", k_fd, step_name);
+                        fd_label = sprintf("k=%d, %s", k_fd, step_name);
+                        
+                        if RUN_POINT3_1
+                            H_fd = @(x) fd_hessian_from_grad(g_h, x, k_fd, use_rel, bw_hess);
 
-                        % -----------------------------
-                        % POINT 3.1: exact gradient + FD Hessian  (MN only)
-                        % -----------------------------
-                        if RUN_POINT3_1                           
-                            H_fd = @(x) fd_hessian_from_grad(g_h, x, k_fd, use_relative, bw_hess);
+                            fprintf('  > MN (3.1, %s)... ', fd_label);
+                            tic; 
+                            [~, ~, gnorm_m, it_m, xseq_m, gradseq_m, ~] = modified_newton_bcktrck(x0, f_h, g_h, H_fd, kmax, tolgrad, c1, rho, btmax);
+                            t_m = toc; 
+                            fprintf('Done. Iters: %d, Time: %.2fs\n', it_m, t_m);
+                            r = r + 1; 
+                            results(r) = fill_struct(prob_id, n, s, "Point3.1", "Modified", k_fd, step_name, gnorm_m, it_m, t_m, xseq_m, gradseq_m, tolgrad);
 
-                            fprintf('  > MN (FD Hessian, %s)... ', fd_label);
-                            tic;
-                            [~, ~, gnorm_m, it_m, xseq_m, gradseq_m, ~] = modified_newton_bcktrck( ...
-                                x0, f_h, g_h, H_fd, ...
-                                kmax, tolgrad, c1, rho, btmax);
-                            t_m = toc;
-
-                            succ = gnorm_m < tolgrad;
-                            fprintf('Finished. Iterations: %d, Time: %.2fs, Success: %d\n', it_m, t_m, succ);
-
-                            r = r + 1;
-                            results(r) = struct('Prob', prob_id, 'n', n, 'pt', s, ...
-                                'FDcase', "Point3.1", 'Method', "Modified", ...
-                                'k', k_fd, 'step', step_name, ...
-                                'gnorm', gnorm_m, 'iters', it_m, 'time', t_m, 'success', succ, ...
-                                'xseq', xseq_m, 'gradseq', gradseq_m, 'exp_rate', estimate_rate(gradseq_m));
-
+                            fprintf('  > TN (3.1, %s)... ', fd_label);
+                            tic; 
+                            [~, ~, gnorm_t, it_t, xseq_t, gradseq_t, ~, ~] = truncated_newton_bcktrck(x0, f_h, g_h, H_fd, kmax, tolgrad, c1, rho, btmax, fterms, cg_maxit);
+                            t_t = toc; 
+                            fprintf('Done. Iters: %d, Time: %.2fs\n', it_t, t_t);
+                            r = r + 1; 
+                            results(r) = fill_struct(prob_id, n, s, "Point3.1", "Truncated", k_fd, step_name, gnorm_t, it_t, t_t, xseq_t, gradseq_t, tolgrad);
                         end
-
-                        % -----------------------------
-                        % POINT 3.2 : FD gradient + FD Hessian                   
-                        % -----------------------------
+                        
                         if RUN_POINT3_2
-                           
-                            g_fd = @(x) fd_grad_from_obj_banded(res_fun, x, k_fd, use_relative, bw_res);
-                            H_fd = @(x) fd_hessian_from_grad(g_fd, x, k_fd, use_relative, bw_hess);
-                            % MN with FD g and FD H
-                            fprintf('  > MN (FD g & H, %s)... ', fd_label);
-                            tic;
-                           
-                            [~, ~, gnorm_m, it_m, xseq_m, gradseq_m, ~] = modified_newton_bcktrck( ...
-                                x0, f_h, g_fd, H_fd, ...
-                                kmax, tolgrad, c1, rho, btmax);
+                            g_fd = @(x) fd_grad_from_obj_banded(res_fun, x, k_fd, use_rel, bw_res);
+                            H_fd = @(x) fd_hessian_from_grad(g_fd, x, k_fd, use_rel, bw_hess);
                             
-                            t_m = toc;
-                            succ=gnorm_m < tolgrad;
+                            fprintf('  > MN (3.2, %s)... ', fd_label);
+                            tic; 
+                            [~, ~, gnorm_m, it_m, xseq_m, gradseq_m, ~] = modified_newton_bcktrck(x0, f_h, g_fd, H_fd, kmax, tolgrad, c1, rho, btmax);
+                            t_m = toc; 
+                            fprintf('Done. Iters: %d, Time: %.2fs\n', it_m, t_m);
+                            r = r + 1; 
+                            results(r) = fill_struct(prob_id, n, s, "Point3.2", "Modified", k_fd, step_name, gnorm_m, it_m, t_m, xseq_m, gradseq_m, tolgrad);
 
-                            fprintf('Finished. Iterations: %d, Time: %.2fs, Success: %d\n', it_m, t_m, succ);
-
-                            r = r + 1;
-                            results(r) = struct('Prob', prob_id, 'n', n, 'pt', s, ...
-                                'FDcase', "Point3.2", 'Method', "Modified", 'k', k_fd, 'step', step_name, ...
-                                'gnorm', gnorm_m, 'iters', it_m, 'time', t_m, 'success', gnorm_m < tolgrad, ...
-                                'xseq', xseq_m, 'gradseq', gradseq_m, 'exp_rate', estimate_rate(gradseq_m));
-
-                            % TN with FD g & FD H 
-                            fprintf('  > TN (FD g & H, %s)... ', fd_label);
-                            tic;
-                            [~, ~, gnorm_t, it_t, xseq_t, gradseq_t, ~, ~] = truncated_newton_bcktrck( ...
-                                x0, f_h, g_fd, H_fd, ...
-                                kmax, tolgrad, c1, rho, btmax, fterms, cg_maxit);
-                            t_t = toc;
-
-                            succ = gnorm_t < tolgrad;
-                            fprintf('Finished. Iterations: %d, Time: %.2fs, Success: %d\n', it_t, t_t, succ);
-
-                            r = r + 1;
-                            results(r) = struct('Prob', prob_id, 'n', n, 'pt', s, ...
-                                'FDcase', "Point3.2", 'Method', "Truncated", 'k', k_fd, 'step', step_name, ...
-                                'gnorm', gnorm_t, 'iters', it_t, 'time', t_t, 'success', gnorm_t < tolgrad, ...
-                                'xseq', xseq_t, 'gradseq', gradseq_t, 'exp_rate', estimate_rate(gradseq_t));
+                            fprintf('  > TN (3.2, %s)... ', fd_label);
+                            tic; 
+                            [~, ~, gnorm_t, it_t, xseq_t, gradseq_t, ~, ~] = truncated_newton_bcktrck(x0, f_h, g_fd, H_fd, kmax, tolgrad, c1, rho, btmax, fterms, cg_maxit);
+                            t_t = toc; 
+                            fprintf('Done. Iters: %d, Time: %.2fs\n', it_t, t_t);
+                            r = r + 1; 
+                            results(r) = fill_struct(prob_id, n, s, "Point3.2", "Truncated", k_fd, step_name, gnorm_t, it_t, t_t, xseq_t, gradseq_t, tolgrad);
                         end
                     end
                 end
-
-            % ============================================================
-            % EXACT PART (Point 2): run MN + TN with exact derivatives
-            % ============================================================
-            else
-                % Exact MN
-                fprintf(' > Executing Modified Newton... ');
-                tic;
-                [~, ~, gnorm_m, k_m, xseq_m, gradseq_m, ~] = modified_newton_bcktrck( ...
-                    x0, f_h, g_h, h_h, kmax, tolgrad, c1, rho, btmax);
-
-                time_m = toc;
-                success_m=gnorm_m < tolgrad;
-
-                fprintf('Finished. Iterations: %d, Time: %.2fs, Success: %d\n', k_m, time_m, success_m);
-
-                r = r + 1;
-                results(r) = struct('Prob', prob_id, 'n', n, 'pt', s, ...
-                    'FDcase', "Exact", 'Method', "Modified", 'k', NaN, 'step', "", ...
-                    'gnorm', gnorm_m, 'iters', k_m, 'time', time_m, 'success', gnorm_m < tolgrad, ...
-                    'xseq', xseq_m, 'gradseq', gradseq_m, 'exp_rate', estimate_rate(gradseq_m));
-
-                % Exact TN
-                fprintf('  > Executing Truncated Newton... ');
-                tic;
-                [~, ~, gnorm_t, k_t, xseq_t, gradseq_t, ~, ~] = truncated_newton_bcktrck( ...
-                    x0, f_h, g_h, h_h, kmax, tolgrad, c1, rho, btmax, fterms, cg_maxit);
-                time_t = toc;
-                success_t = gnorm_t < tolgrad;
-
-                fprintf('Finished. Iterations: %d, Time: %.2fs, Success: %d\n', k_t, time_t, success_t);
-
-                r = r + 1;
-                results(r) = struct('Prob', prob_id, 'n', n, 'pt', s, ...
-                    'FDcase', "Exact", 'Method', "Truncated", 'k', NaN, 'step', "", ...
-                    'gnorm', gnorm_t, 'iters', k_t, 'time', time_t, 'success', gnorm_t < tolgrad, ...
-                    'xseq', xseq_t, 'gradseq', gradseq_t, 'exp_rate', estimate_rate(gradseq_t));
             end
         end
     end
 end
+
+
+%% Helper for filling the results struct
+function s = fill_struct(prob, n, pt, case_name, method, k, step, gnorm, iters, time, xseq, gradseq, tol)
+    s.Prob = prob; s.n = n; s.pt = pt; s.FDcase = case_name; s.Method = method;
+    s.k = k; s.step = step; s.gnorm = gnorm; s.iters = iters; s.time = time;
+    s.success = gnorm < tol; s.xseq = xseq; s.gradseq = gradseq;
+    s.exp_rate = convergence_rate(gradseq);
+end
+
+
 % Converts results in a table
 T_full = struct2table(results);
 
