@@ -7,13 +7,13 @@ min_id = min(student_ids);
 rng(min_id); 
 
 % --- METHOD PARAMETERS ---
-kmax = 1000;
-tolgrad = 1e-6; 
+kmax = 200;
+tolgrad = 1e-5; 
 c1 = 1e-4; 
 rho = 0.5; 
-btmax = 50;
+btmax = 20;
 fterms = @(k, gradfk) min(0.5, sqrt(norm(gradfk))); % Forcing term for superlinear conv in truncated
-cg_maxit = 500;
+cg_maxit = 50;
 
 % --- FINITE DIFFERENCES SETTINGS --- 
 k_list = [4, 8, 12]; 
@@ -22,13 +22,13 @@ use_relative_list = [false, true]; % false -> h costante, true -> hi adattivo
 
 % --- CHOOSING WHAT TO RUN ---
 RUN_EXACT    = true; % Point 2: Exact derivatives 
-RUN_POINT3_1 = false; % Point 3.1: Exact Gradient, Hessian FD 
-RUN_POINT3_2 = false; % Point 3.2: Grandient and Hessian FD 
+RUN_POINT3_1 = true; % Point 3.1: Exact Gradient, Hessian FD 
+RUN_POINT3_2 = true; % Point 3.2: Grandient and Hessian FD 
 
 % --- TEST SETTINGS ---
-dimensions = [2, 1e3, 1e4, 1e5]; 
+dimensions = [2,1000,1e4,1e5]; 
 n_rand_points = 5; 
-problem_ids = [31, 49]; 
+problem_ids = [31,49]; 
 nStarts = 1 + n_rand_points;
 nFD = numel(k_list) * numel(use_relative_list);
 
@@ -55,12 +55,10 @@ for prob_id = problem_ids
     
     if prob_id == 31
         f_h = @prob31_obj; g_h = @prob31_grad; h_h = @prob31_hess;
-        res_fun = @prob31_residui;
         bw_res = 1;
         bw_hess = 2;
     else
         f_h = @prob49_obj; g_h = @prob49_grad; h_h = @prob49_hess;
-        res_fun = @prob49_residui;
         bw_res = 2;
         bw_hess = 4;
     end
@@ -112,8 +110,15 @@ for prob_id = problem_ids
                         step_name = step_types(st);
                         fd_label = sprintf("k=%d, %s", k_fd, step_name);
                         
+                        
                         if RUN_POINT3_1
-                            H_fd = @(x) fd_hessian_from_grad(g_h, x, k_fd, use_rel, bw_hess);
+
+                            if prob_id == 31
+                                H_fd = @(x) fd_hess31_vett(x, k_fd, use_rel);
+                            elseif prob_id == 49
+                                H_fd = @(x) fd_hess49_vett(x, k_fd, use_rel);
+                            end
+                             
 
                             fprintf('  > MN (3.1, %s)... ', fd_label);
                             tic; 
@@ -133,8 +138,14 @@ for prob_id = problem_ids
                         end
                         
                         if RUN_POINT3_2
-                            g_fd = @(x) fd_grad_from_obj_banded(res_fun, x, k_fd, use_rel, bw_res);
-                            H_fd = @(x) fd_hessian_from_grad(g_fd, x, k_fd, use_rel, bw_hess);
+                            if prob_id == 31
+                                g_fd = @(x) fd_grad31_vett(x, k_fd, use_rel);
+                                H_fd = @(x) fd_hess31_vett(x, k_fd, use_rel);
+                            elseif prob_id == 49
+                                g_fd = @(x) fd_grad49_vett(x, k_fd, use_rel);
+                                H_fd = @(x) fd_hess49_vett(x, k_fd, use_rel);
+                            end
+                           
                             
                             fprintf('  > MN (3.2, %s)... ', fd_label);
                             tic; 
@@ -227,25 +238,4 @@ function p = estimate_rate(gradseq)
 end
 
 
-
-%temporary functions: we should put r directly in the output of problem
-%files
-function r = prob31_residui(x)
-    n = length(x);
-    % f_k(x) = (3-2x_k)x_k - x_{k-1} - 2x_{k+1} + 1
-    x_prev = [0; x(1:n-1)];
-    x_next = [x(2:n); 0];
-    r = (3 - 2*x).*x - x_prev - 2*x_next + 1; 
-end
-
-function r = prob49_residui(x)
-    n = length(x);
-    f1 = x(1) - 1; 
-    % Residui pari (e_i) e dispari (o_i)
-    xi = x(1:n-1); xip1 = x(2:n);
-    e = 10 * (xi.^2 - xip1); 
-    a = x(1:n-2) - x(2:n-1); b = x(2:n-1) - x(3:n);
-    o = 2*exp(-(a.^2)) + exp(-2*(b.^2)); 
-    r = [f1; e; o]; 
-end
 
